@@ -1,0 +1,128 @@
+\documentclass[UTF8]{ctexart}
+\usepackage{CJK}
+\usepackage{amsmath}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{algpseudocode}
+\usepackage{algorithm}
+\usepackage{algorithmicx}
+\usepackage{caption,subcaption}
+\usepackage{color}
+\usepackage{mathtools}
+\CTEXsetup[format={\Large\bfseries}]{section}
+\title{Pattern Recognition: Assignment 6}
+\author{钟赟 202028013229148}
+\usepackage{geometry}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\begin{document}
+
+\maketitle
+\setlength{\parindent}{0pt}
+\section*{1  Generative and Discriminative classifiers: Gaussian Bayes and Logistic Regression}
+Recall that a generative classifier estimates $P(\mathbf{x}, y)=P(y) P(\mathbf{x} \mid y),$ while a discriminative classifier directly estimates $P(y \mid \mathbf{x})$ .
+\subsection*{1.1 Specific Gaussian naive Bayes classifiers and logistic regression}
+Consider a \textbf{specific class} of Gaussian naive Bayes classifiers where:
+
+\begin{itemize}
+	\item $y$ is a boolean variable following a Bernoulli distribution, with parameter $\pi=P(y=1)$ and thus $P(Y=$
+	0)$=1-\pi$ .
+	\item $\mathbf{x}=\left[x_{1}, \ldots, x_{D}\right]^{T},$ with each feature $x_{i}$ a continuous random variable. For each $x_{i}, P\left(x_{i} \mid y=k\right)$ is a
+Gaussian distribution $\mathcal{N}\left(\mu_{i k}, \sigma_{i}\right) .$ Note that $\sigma_{i}$ is the standard deviation of the Gaussian distribution, which
+does not depend on $k$.
+	\item For all $i \neq j, x_{i}$ and $x_{j}$ are conditionally independent given $y$ (so called ``naive" classifier).
+\end{itemize}
+
+\textbf{Question}:  please show that the relationship between a discriminative classifier (say logistic regression) and the
+above specific class of Gaussian naive Bayes classifiers is precisely the form used by logistic regression.
+\subsection*{Solution}
+$P(Y=1|X)=\frac{P(Y=1)P(X|Y=1)}{P(Y=1)P(X|Y=1)+P(Y=0)P(X|Y=0)} = \frac{1}{1+\frac{P(Y=0)P(X|Y=0)}{P(Y=1)P(X|Y=1)}}$
+
+分子分母取对数得：
+
+$P(Y=1|X)=\frac{1}{1+e^{\ln\frac{P(Y=0)P(X|Y=0)}{P(Y=1)P(X|Y=1)}}} = \frac{1}{1+e^{\ln\frac{P(Y=0)}{P(Y+1)}+\sum_i^D \ln\frac{P(X|Y=0)}{P(X|Y=1)}}}$
+
+由题已知 $P(Y=0)=1-\pi, P(Y=1) = \pi$，故 $P(Y=1|X)=\frac{1}{1+e^{\ln\frac{1-\pi}{\pi}+\sum_i^D \ln\frac{P(X|Y=0)}{P(X|Y=1)}}}$
+
+其中 
+
+\begin{aligned}
+	\sum_i^D \ln \frac{P(X|Y=0)}{P(X|Y=1)} &= \sum_i^D \ln \frac{\frac{1}{\sqrt{2\pi}\sigma_i }e^{-\frac{(x_i-\mu_{i0} )^2}{2\sigma^2}}}{\frac{1}{\sqrt{2\pi}\sigma_i }e^{-\frac{(x_i-\mu_{i1} )^2}{2\sigma^2}}}\\
+	&= \sum_i^D \ln e^{-\frac{(x_i-\mu_{i0})^2-(x_i-\mu_{i1})^2}{2\sigma_i^2}}\\
+	&= \sum_i^D \frac{(x_i-\mu_{i1})^2-(x_i-\mu_{i0})^2}{2\sigma_i^2}\\
+	&= \sum_i^D \frac{X_i^2-2X_i\mu_{i1}+\mu_{i1}^2-X_i^2+2X_i\mu_{i0}-\mu_{i0}^2}{2\sigma_i^2}\\
+	&= \sum_i^D \frac{\mu_{i1}^2-\mu_{i0}^2+2X_i(\mu_{i0}-\mu_{i1})}{2\sigma_i^2}\\
+	&= \sum_i^D (\frac{\mu_{i1}^2-\mu_{i0}^2}{2\sigma_i^2}+\frac{2X_i(\mu_{i0}-\mu_{i1})}{\sigma_i^2})
+\end{aligned}
+
+因此 $P(Y=1|X)=\frac{1}{1+e^{\ln\frac{1-\pi}{\pi}+\sum_i^D(\ln\frac{X_i(\mu_{i0}-\mu_{i1})}{\sigma_i^2}+\frac{\mu_{i1}^2-\mu_{i0}^2}{2\sigma_i^2})}}$, 记为 $P(Y=1|X)=\frac{1}{1+e^{w_0+\sum_i^D w_i X_i}}$ ，其中 $w_i = \frac{X_i(\mu_{i0}-\mu_{i1})}{\sigma_i^2}$ ，
+则 $w_0 = \ln\frac{1-\pi}{\pi}+\sum_i^D \frac{\mu_{i1}^2-\mu_{i0}^2}{2\sigma_i^2}$
+
+故 $P(Y=0|X)=1-P(Y=1|X)=\frac{e^{w_0+\sum_i^D w_i X_i}}{1+e^{w_0 + \sum_i^D w_i X_i}}$
+
+\subsection*{1.2 General Gaussian naive Bayes classifiers and logistic regression}
+Removing the assumption that the standard deviation $\sigma_{i}$ of $P\left(x_{i} \mid y=k\right)$ does not depend on $k .$ That is , for each
+$x_{i}$, $P\left(x_{i} \mid y=k\right)$ is a Gaussian distribution $\mathcal{N}\left(\mu_{i k}, \sigma_{i k}\right),$ where $i=1, \ldots, D$ and $k=0,1$.
+
+\textbf{Question}: is the new form of $P(y \mid \mathrm{x})$ implied by this more general Gaussian naive Bayes classifier still the form
+used by logistic regression? Derive the new form of $P(y \mid \mathbf{x})$ to prove your answer.
+\subsection*{Solution}
+根据题目 1.1 得， $P(Y=1|X)=\frac{1}{1+e^{\ln\frac{1-\pi}{\pi}+\sum_i^D \ln\frac{P(X|Y=0)}{P(X|Y=1)}}}$ ，其中 $P(X_i|y=k)$ ~ $N(\mu_{ik}, \sigma_{ik})$
+
+\begin{aligned}
+	\sum_i^D \ln \frac{P(X|Y=0)}{P(X|Y=1)} &= \sum_i^D \ln e^{-\frac{(x_i-\mu_{i0})^2-(x_i-\mu_{i1})^2}{2\sigma_i^2}}\\
+	&= \sum_i^D \ln \frac{\sigma_{i1}}{\sigma_{i0}} e^{-(\frac{2\sigma_{i1}^2(X_i-\mu_{i0})^2-2\sigma_{i0}(x_i-\mu_{i1})^2)}{2\sigma_{i0}^2\sigma_{i1}^2}}\\
+	&= \sum_i^D \ln \frac{\sigma_{i1}}{\sigma_{i0}} e^{\frac{x_i^2(\sigma_{i0}^2-\sigma_{i1}^2)+2x_i(2\sigma_{i0}^2\mu_{i1}-2\sigma_{i1}^2\mu_{i0})+\sigma_{i0}^2\mu_{i1}^2-\sigma_{i1}^2\mu_{i0}^2}{2\sigma_{i0}^2\sigma_{i1}^2}}
+\end{aligned}
+
+该式始终存在 $x_i^2$ 无法消去，因此不满足逻辑回归的形式。
+\subsection*{Gaussian Bayes classifiers and logistic regression}
+Now, consider the following assumptions for our Gaussian Bayes classifiers (without “naive”):
+
+\begin{itemize}
+	\item $y$ is a boolean variable following a Bernoulli distribution, with parameter $\pi=P(y=1)$ and thus $P(Y=$
+	0)$=1-\pi$.
+	\item $\mathbf{x}=\left[x_{1}, x_{2}\right]^{T}$, i.e., we only consider two features for each sample, with each feature a continuous random
+	variable. $x_{1}$ and $x_{2}$ are not conditional independent given $y .$ We assume $P\left(x_{1}, x_{2} \mid y=k\right)$ is a bivariate
+	Gaussian distribution $\mathcal{N}\left(\mu_{1 k}, \mu_{2 k}, \sigma_{1}, \sigma_{2}, \rho\right),$ where $\mu_{1 k}$ and $\mu_{2 k}$ are means of $x_{1}$ and $x_{2}, \sigma_{1}$ and $\sigma_{2}$ are
+	standard deviations of $x_{1}$ and $x_{2}$, and $\rho$ is the correlation between $x_{1}$ and $x_{2}$. The density of the bivariate
+	Gaussian distribution is:
+	$$
+	P\left(x_{1}, x_{2} \mid y=k\right)=\frac{1}{2 \pi \sigma_{1} \sigma_{2} \sqrt{1-\rho^{2}}} \exp \left[-\frac{\sigma_{2}^{2}\left(x_{1}-\mu_{1 k}\right)^{2}+\sigma_{1}^{2}\left(x_{2}-\mu_{2 k}\right)^{2}-2 \rho \sigma_{1} \sigma_{2}\left(x_{1}-\mu_{1 k}\right)\left(x_{2}-\mu_{2 k}\right)}{2\left(1-\rho^{2}\right) \sigma_{1}^{2} \sigma_{2}^{2}}\right]
+	$$
+\end{itemize}
+
+\textbf{Question}:  is the form of $P(y \mid \mathbf{x})$ implied by such not-so-naive Gaussian Bayes classifiers still the form used by
+logistic regression? Derive the form of $P(y \mid \mathbf{x})$ to prove your answer.
+\subsection*{Solution}
+根据题目 1.1 得， $P(Y=1|X)=\frac{1}{1+e^{\ln\frac{1-\pi}{\pi}+\sum_i^D \ln\frac{P(X|Y=0)}{P(X|Y=1)}}}$ 
+
+\begin{aligned}
+	\sum_i^D \ln \frac{P(x_1 x_2|Y=0)}{P(x_1 x_2|Y=1)} &= \frac{\frac{1}{2\pi \sigma_1\sigma_2\sqrt{1-\rho^2}e^{1\frac{\sigma_2^2(x_i-\mu_{10})^2+\sigma_1^2(x_2-\mu_{20})^2-2\rho\sigma_1\sigma_2(x_1-\mu_{10})(x_2-\mu_{20})}{2(1-\rho^2)\sigma_1^2\sigma_2^2}}}}{\frac{1}{2\pi \sigma_1\sigma_2\sqrt{1-\rho^2}e^{1\frac{\sigma_2^2(x_i-\mu_{11})^2+\sigma_1^2(x_2-\mu_{21})^2-2\rho\sigma_1\sigma_2(x_1-\mu_{11})(x_2-\mu_{21})}{2(1-\rho^2)\sigma_1^2\sigma_2^2}}}}\\
+	&= e^{\frac{\sigma_2^2(x_i-\mu_{11})^2+\sigma_1^2(x_2-\mu_{21})^2-2\rho\sigma_1\sigma_2(x_1-\mu_{11})(x_2-\mu_{21})-\sigma_2^2(x_i-\mu_{10})^2+\sigma_1^2(x_2-\mu_{20})^2-2\rho\sigma_1\sigma_2(x_1-\mu_{10})(x_2-\mu_{20})}{2(1-\rho^2)\sigma_1^2\sigma_2^2}}\\
+	&= e^{\frac{\sigma^2(2x_1\mu_{10}-2x_1\mu_{11}+\mu_{11}^2-\mu_{10}^2)+\sigma_1^2(2x_2\mu_{20}-2x_2\mu_{21}+\mu_{21}^2-\mu_{20}^2)+2\rho\sigma_1\sigma_2(x_1(\mu_{21}-\mu_{20})+x_2(\mu_{11}-\mu_{10})-\mu_{11}\mu_{21}-\mu_{10}\mu_{20})}{2(1-\rho^2)\sigma_1^2\sigma_2^2}}
+\end{aligned}
+
+其中 $x_1^2, x_2^2, x_1 x_2$ 都被消去了。
+
+\begin{aligned}
+P(Y=1|X)&=\frac{1}{1+e^{\ln \frac{1-\pi}{\pi}+ \frac{x_1(2\sigma_2^2\mu_{10}-2\sigma_2^2\mu_{11}+2\rho\sigma_1\sigma_2\mu_{21})+x_2(2\sigma_1^2\mu_{20}-2\sigma_1^2\mu_{21}+2\rho\sigma_1\sigma_2\mu_{11})+\sigma_2^2\mu_{11}^2 -\sigma_1^2\mu_{10}^2+\dots}{2(1-\rho^2)\sigma_1^2\sigma_2^2}}}\\
+&= \frac{1}{1+e^{w_0+w_1x_1+w_2x_2}}
+\end{aligned}
+
+其中 
+
+$$
+	w_1 &= \frac{2\sigma_2^2\mu_{10}-2\sigma_2^2\mu_{11}+2\rho\sigma_1\sigma_2\mu_{21}}{2(1-\rho^2)\sigma_1^2\sigma_2^2}\\
+
+	w_2 &= \frac{2\sigma_2^2\mu_{20}-2\sigma_1^2\mu_{21}+2\rho\sigma_1\sigma_2\mu_{11}}{2(1-\rho^2)\sigma_1^2\sigma_2^2}\\
+
+	w_0 &= \\ln\frac{1-\pi}{\pi} + \frac{\sigma_2^2\mu_{11}^2-\sigma_2^2\mu_{10}^2+\sigma_1^2\mu_{21}^2-\sigma_1^2\mu_{20}^2-2\rho\sigma_1\sigma_2(\mu_{20}+\mu_{10}+\mu_{11}\mu_{21}+\mu{10}\mu_{20})}{2(1-\rho^2)\sigma_1^2\sigma_2^2}
+$$
+
+满足逻辑回归的形式。同理 $P(Y=0|X)=1-P(Y=1|X)$ 。
+\end{document}

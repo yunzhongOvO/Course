@@ -1,0 +1,148 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper]{geometry}
+\geometry{left=2.0cm,right=2.0cm,top=2.5cm,bottom=2.5cm}
+
+\usepackage{ctex}
+\usepackage{amsmath,amsfonts,graphicx,amssymb,bm,amsthm}
+\usepackage{algorithm,algorithmicx}
+\usepackage[noend]{algpseudocode}
+\usepackage{fancyhdr}
+
+
+\newcounter{counter_exm}\setcounter{counter_exm}{1}
+%\newcounter{counter_thm}\setcounter{counter_thm}{1}
+%\newcounter{counter_lma}\setcounter{counter_lma}{1}
+%\newcounter{counter_dft}\setcounter{counter_dft}{1}
+%\newcounter{counter_clm}\setcounter{counter_clm}{1}
+%\newcounter{counter_cly}\setcounter{counter_cly}{1}
+
+\newtheorem{theorem}{{\hskip 1.7em \bf}}
+\newtheorem{lemma}[theorem]{\hskip 1.7em }
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{claim}[theorem]{\hskip 1.7em }
+\newtheorem{corollary}[theorem]{\hskip 1.7em }
+\newtheorem{definition}[theorem]{\hskip 1.7em }
+
+\renewcommand{\emph}[1]{\begin{kaishu}#1\end{kaishu}}
+
+\newenvironment{solution}{{\noindent\hskip 2em \bf  \quad}}
+
+
+\renewenvironment{proof}{{\noindent\hskip 2em \bf ֤ \quad}}{\hfill$\qed$\par}
+\newenvironment{example}{{\noindent\hskip 2em \bf  \arabic{counter_exm}\quad}}{\addtocounter{counter_exm}{1}\par}
+
+\newenvironment{concept}[1]{{\bf #1\quad} \begin{kaishu}} {\end{kaishu}\par}
+
+\newcommand\E{\mathbb{E}}
+
+\begin{document}
+    
+    \pagestyle{fancy}
+    \lhead{\kaishu 中国科学院大学}
+    \chead{}
+    \rhead{\kaishu 2020年秋季学期并行与分布式计算}
+    
+    \begin{center}
+        {\LARGE \bf 关于面向机器学习的动态SSP分布式训练框架的调研}
+    \end{center}
+    \begin{center}
+        \begin{kaishu}
+            戴凌飞 \  狄战元 \  史好迎 \  张林隽 \  钟赟
+        \end{kaishu}
+    \end{center}
+
+
+    \section{概述}
+    在深度学习中，训练深度神经网络是一项对时间和存储开销要求很高的任务，需要用大量数据训练一个非常复杂的模型，而这往往是一台机器难以做到的。更常见的办法是利用分布式系统，实现参数服务器框架，将参数训练任务分配给多台机器并行完成。
+
+    在本次调研中，我们比较了批量同步并行（Bulk Synchronous Parallel，BSP）、异步并行（Asynchronous Parallel，ASP）和延迟同步并行（Stale Synchronous Parallel，SSP）三种经典的参数服务器的框架，并在SSP的基础上调研了动态SSP，后者通过在运行时动态调整延迟同步的阈值，既能在分布式系统中实现较高的一致性和训练结果准确性，又能达到较好的收敛速度，同时又能根据实时运行环境动态调整对于同步的要求，从而达到全局效果最优。
+    
+
+    \section{参数服务器框架的相关工作}
+    \subsection{批量同步并行（Bulk Synchronous Parallel）}
+    %TODO
+
+    \subsection{异步并行（Asynchronous Parallel）}
+    %TODO
+
+    \subsection{延迟同步并行（Stale Synchronous Parallel）}
+    \subsubsection{工作原理} 
+    SSP参数服务器是BSP和ASP两者的结合，通过限制最快worker和最慢worker之间迭代次数差值在一个阈值$s$以内，保证各个worker间计算的进度不会差太多，因此只要该差值保持在$s$以内，各worker之间就无需等待，系统可以异步地进行；一旦差值超过了阈值，最快worker会被迫同步，等待系统中最慢的worker。尽管在SSP的系统中，每次迭代开始后系统中分布的参数就是不一致的，但是延迟同步的阈值将这种不同步限定在一定步数之内，该机器学习模型仍然可以收敛。
+
+    在SSP系统中，假设有$P$个worker，即$P$个负责参数计算的线程，每一次迭代都对系统共享的参数$x$作出更新$x\leftarrow x+u$，代表该机器学习算法中某一计算步骤，每个worker都有自己的时钟$c$，worker只有在时钟周期的末尾提交最新的计算结果，提交的更新也不一定会对其他想要读$x$的线程可见，也就是说工作线程只能看见其他所有工作线程的更新的一个过时的子集。因为容忍一定程度的延迟，工作线程可以从本地机器的缓存取回数据而不是每次都要通过通信来向参数服务器请求数据。
+
+    用户给定一个可以容忍的延迟阈值$s \geq 0$，SSP系统自然满足关于该有界最大延迟的条件（参考图1）：
+
+    \textbullet 最快和最慢工作线程的时钟差必须不超过$s$，否则最快的工作线程需要等待最慢的线程。
+
+    \textbullet 当一个工作线程在时钟周期$c$提交一个更新$u$时，$u$应该带上时间戳$c$。
+
+    \textbullet 当一个工作线程在时钟周期$c$想要读$x$时，它必须能够读到所有时间戳不超过$c-s-1$的更新$u$在$x$上产生效果后的结果，同时也可以包括一些时间戳在$c-s-1$之后的更改$u$。
+
+    \textbullet 保证写后读一致：一个工作线程$p$任何时候看到的都是自己在完成写操作$u_p$后的结果。
+    %图1
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.5\textwidth]{bounded-staleness-under-the-SSP-model.png}
+        \caption{Bounded Staleness under the SSP Model}
+    \end{figure}
+
+    由于最快和最慢的工作线程之间相差不超过$s$步，一个线程在时钟$c$的时候读$x$，一定能够看到时间戳在$[0,c-s-1]$范围内更新，有可能能看到$[c-s, c+s-1]$范围内的更新。
+
+    \subsubsection{具体实现——SSPtable}
+    这一部分介绍SSPtable的实现。SSPtable是一种基于SSP模型的参数服务器，并且可以并行地运行在多态服务器上。如下图所示，SSPtable遵循客户-服务器的分布式架构，客户为了访问共享的训练参数，通过调用相应的库访问进程缓存和（可选）每个线程的局部缓存，后者由于减少了单个机器上的线程间同步能够一定程度上提高性能。在SSPtable上的编程在读写参数$x$时采用一些简单的API即可：
+
+    \textbullet 参数表的组织：SSPtable用表的形式来存储参数$x$，对表的数量不设限，这些表需要划分成行，每一行需要进一步划分成元素。
+
+    \textbullet $\mathtt{read\_row(table, row, s)}$：取回某一行，延迟阈值为$s$，用户可以用来访问特定的行或元素。
+
+    \textbullet $\mathtt{inc(table, row, el, val)}$：在某张表的某一行某个元素上加$\mathtt{val}$，$\mathtt{val}$可以是负值，但这些更新只有在下次调用$\mathtt{clock()}$的时候才传给服务器。
+
+    \textbullet $\mathtt{clock()}$：告诉所有服务器当前线程已经完成了一个时钟周期的运算，并提交所有未提交的$\mathtt{inc()}$写操作。
+    %图2
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.4\textwidth]{cache-structure-of-SSPtable-with-multiple-server-shards.png}
+        \caption{Cache structure of SSPtable, with multiple server shards}
+    \end{figure}
+    为了保证最快和最慢的线程之间最多不相差$s$步，SSPtable会让最快的线程在调用$\mathtt{read\_row()}$时阻塞住，知道最慢的线程赶上来。为了保证写后读的一致性，缓存采用了写回策略：所有写操作会写到线程局部cache，等到调用$\mathtt{clock()}$的时候再写回进程cache和服务器。
+
+    为了保证有界延迟的同时最小化$\mathtt{read\_row()}$的阻塞时间，SSPtable采用如下cache协议：线程或进程cache上的每一张表的每一行都附有相应的时钟$r_{thread}$和$r_{proc}$；每个工作线程都有一个时钟$c$，$c$就等于该线程调用$\mathtt{clock()}$的次数；并由此定义服务器时钟$c_{server}$，它等于所有线程时钟$c$的最小值。当一个线程在时间$c$请求某一行时，首先检查线程私有cache，如果其时间戳满足$r_{thread} \geq c-s$就直接读线程cache；否则，检查进程cache，如果进程cache的这一行满足$r_{proc} \geq c-s$就读进程cache。目前为止都只需要访问本地的缓存。如果本地缓存都没有命中，就向服务器发送请求，工作线程此时被阻塞，直到服务器返回相应的行及相应的时间戳$c_{server}$。取回数据后，线程需要将最新的数据及时间戳$c_{server}$写入线程和进程cache，并更新$r_{thread}$和$r_{proc}$。
+
+    \subsubsection{分析}
+    SSP的cache一致性协议的优点是最慢的工作线程只需要每$s$个时钟周期向服务器发送一次这种需要阻塞的读请求，而较快的线程向服务器发送读请求会相对频繁一些，最坏情况也只有最快线程每个时钟周期都需要和最慢线程同步。这是和BSP不同的地方，BSP需要每个周期所有线程都同步。因此SSP不仅能够减少和远程服务器的同步，减少网络通信开销，还能让运行比较慢的线程避免在一些迭代中读服务器，较慢的线程也可以渐渐跟上，同时运行较快的线程可以在一定程度上异步地计算而不需要阻塞同步。因此整体来说，SSP最大化了每台机器上的计算资源的利用率，减少了阻塞同步带来的开销。
+
+
+    \section{动态DSSP（Dynamic Stale Sychronous Parallel）}
+    \subsection{研究背景}
+    SSP是介于BSP和ASP之间的一种中间方案。它的速度比BSP快，而且保证了收敛性，从而得到比ASP更准确的模型。然而，在SSP中，用户指定的陈旧度阈值是固定的，这导致了两个问题。首先，用户通常很难指定一个好的单阈值，因为用户不知道哪个值是最好的。选择一个好的阈值可能需要在一个整数范围内通过无数次试验手动搜索。此外，DNN模型还涉及许多其他超参数（如层数和每层的节点数）。当这些参数发生变化时，必须再次重复相同的搜索试验。其次，单一的固定值可能不适合整个训练过程，一个不明确的值可能会导致最快的worker等待的时间比必要的时间长。
+
+    为了解决这些问题，接下来介绍动态SSP的研究。DSSP提出在训练过程中，根据分布式计算资源实时处理速度的统计，从给定范围中动态选择一个阈值。它允许阈值随时间变化，也允许不同的worker节点有不同的阈值，以适应运行时的环境。
+
+    \subsection{工作原理}
+    定义$S_L$和$S_U$为staleness的上界与下界，DSSP要寻找的是整数$r^*\in[0, r_{max}]$，$r_{max} = S_U - S_L$，且$r^* = s^* - S_L$，其中$s^* \in [S_L, S_U]$.
+
+    以随机梯度下降为例，算法分为worker、server和同步控制器三部分：
+
+    \textbullet worker部分：首先，每个worker上都有model的副本以及被分配的一部分data，每次迭代时在本地使用随机梯度下降（SGD）计算参数，随后上传至server。等待server发回OK信号后，继续从server端拉取一部分更新迭代过的参数，继续使用下一批mini-batch做SGD更新本地参数，如此循环直至训练结束。
+
+    \textbullet server部分：server收到某个worker $p$上传的梯度参数后，立即更新全局参数。然后开始判断是否给worker $p$发送OK信号：server存储了从每个worker收到的上传次数，并找到最慢的worker，若worker $p$的上传次数与最慢的worker差距不超过$s_L$次迭代，则向worker $p$发送OK信号，令其继续迭代；否则，若worker $p$是当前最快的worker节点，server要通过调用同步控制器（synchronization controller）来决定是否允许worker $p$继续迭代。
+
+    \textbullet 同步控制器（synchronization controller）部分：在表中存储所有worker节点最近两次上传请求的时间戳，使用该表的信息来模拟worker $p$和最慢的worker之间的$r_{max}$，同步控制器要在$[0，r_{max}]$区间找到一个时间点$r^*$，使得worker $p$的等待时间最小化。并将这个时间点$r^*$发送给worker $p$，让worker $p$继续迭代到时间点$r^*$。
+
+    \section{总结}
+
+    参数训练由快到慢依次是：BSP$\rightarrow$SSP$\rightarrow$DSSP$\rightarrow$ASP。
+
+    DNN中有无全连接层对训练迭代有着很大的影响。在有全连接层的DNN训练中，BSP有着最高的精度，DSSP有着最快的收敛速度且精度比SSP和ASP高；而在无全连接层的DNN训练中，BSP的收敛速度最慢，精度也比较低，ASP收敛速度最快，DSSP在阈值$[3, 15]$的区间中表现略高于SSP的平均水平。
+
+    造成这种影响的原因是：与使用共享参数的卷积层相比，全连接层需要更多的参数，有全连接层的DNN有大量的模型参数需要在worker和server之间传输更新。卷积层的矩阵点积运算的计算时间开销更大，带全连接层的计算时间开销较小，传输时间开销更大。因此，DSSP、SSP和ASP在DNN上花费的训练时间较少，而BSP在CNN上花费的训练时间最少。
+
+
+\end{document}
+
+
+
+
+
